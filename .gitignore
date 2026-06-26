@@ -1,0 +1,13 @@
+# Runtime and generated Clash files
+/clash
+/cache.db
+/clash.log
+/clash.pid
+
+# Local configuration and subscription secrets
+/config.yaml
+/subscription.url
+
+# Downloaded rule databases
+/geoip.metadb
+/geosite.dat

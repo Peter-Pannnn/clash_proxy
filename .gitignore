@@ -6,6 +6,7 @@
 
 # Local configuration and subscription secrets
 /config.yaml
+/config-tun.yaml
 /subscription.url
 
 # Downloaded rule databases

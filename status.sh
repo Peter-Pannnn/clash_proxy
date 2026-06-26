@@ -11,6 +11,7 @@ collect_pids() {
       cat "$PID_FILE"
     fi
     pgrep -f "$PROJECT_DIR/clash -d $PROJECT_DIR -f $PROJECT_DIR/config.yaml" || true
+    pgrep -f "$PROJECT_DIR/clash -d $PROJECT_DIR -f $PROJECT_DIR/config-tun.yaml" || true
   } | awk '/^[0-9]+$/ && !seen[$1]++ { print $1 }'
 }
 

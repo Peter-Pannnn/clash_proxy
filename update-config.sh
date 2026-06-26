@@ -4,6 +4,7 @@ set -euo pipefail
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUB_FILE="$PROJECT_DIR/subscription.url"
 CONFIG_FILE="$PROJECT_DIR/config.yaml"
+TUN_CONFIG_FILE="$PROJECT_DIR/config-tun.yaml"
 TMP_CONFIG="$PROJECT_DIR/config.yaml.download"
 CURL_CONNECT_TIMEOUT="${CLASH_CONNECT_TIMEOUT:-15}"
 CURL_MAX_TIME="${CLASH_SUB_MAX_TIME:-30}"
@@ -15,6 +16,10 @@ usage() {
 
 不传订阅链接时，会读取:
   $SUB_FILE
+
+更新后会生成:
+  $CONFIG_FILE
+  $TUN_CONFIG_FILE
 EOF
 }
 
@@ -73,7 +78,30 @@ def is_placeholder_config(value):
         )
     )
 
-def add_tun_to_yaml(value):
+def remove_top_level_tun(value):
+    lines = value.splitlines()
+    output = []
+    index = 0
+
+    while index < len(lines):
+        line = lines[index]
+        if re.match(r"^tun\s*:", line):
+            index += 1
+            while index < len(lines):
+                next_line = lines[index]
+                if next_line and not next_line.startswith((" ", "\t")):
+                    break
+                index += 1
+            continue
+
+        output.append(line)
+        index += 1
+
+    return "\n".join(output).rstrip() + "\n"
+
+
+def apply_tun_to_yaml(value):
+    value = remove_top_level_tun(value)
     if not tun_enabled:
         return value
     if re.search(r"(?m)^tun:\s*$", value):
@@ -312,7 +340,7 @@ if looks_like_yaml(text):
         print("订阅服务返回了不支持当前客户端的占位配置。请使用 CLASH_SUB_USER_AGENT=mihomo 重新更新。", file=sys.stderr)
         sys.exit(1)
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(add_tun_to_yaml(text))
+        f.write(apply_tun_to_yaml(text))
     sys.exit(0)
 
 decoded = decode_base64_subscription(text)
@@ -323,7 +351,7 @@ if looks_like_yaml(content):
         print("订阅服务返回了不支持当前客户端的占位配置。", file=sys.stderr)
         sys.exit(1)
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(add_tun_to_yaml(content))
+        f.write(apply_tun_to_yaml(content))
     sys.exit(0)
 
 used_names = set()
@@ -393,30 +421,9 @@ with open(output_file, "w", encoding="utf-8") as f:
 PY
 }
 
-truthy() {
-  case "${1:-}" in
-    1|true|TRUE|yes|YES|on|ON)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
-}
-
-config_has_tun() {
-  [[ -s "$CONFIG_FILE" ]] && awk '
-    /^tun:[[:space:]]*$/ { in_tun = 1; next }
-    /^[^[:space:]]/ { in_tun = 0 }
-    in_tun && /^[[:space:]]+enable:[[:space:]]*true[[:space:]]*$/ { found = 1 }
-    END { exit found ? 0 : 1 }
-  ' "$CONFIG_FILE"
-}
-
 main() {
   local subscription_url="${1:-}"
   local sub_user_agent="${CLASH_SUB_USER_AGENT:-mihomo}"
-  local tun_enabled=0
 
   if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
     usage
@@ -425,14 +432,6 @@ main() {
 
   need_cmd curl
   need_cmd python3
-
-  if [[ -n "${CLASH_TUN:-}" ]]; then
-    if truthy "$CLASH_TUN"; then
-      tun_enabled=1
-    fi
-  elif config_has_tun; then
-    tun_enabled=1
-  fi
 
   if [[ -z "$subscription_url" ]]; then
     if [[ ! -s "$SUB_FILE" ]]; then
@@ -467,10 +466,12 @@ main() {
     exit 1
   fi
 
-  normalize_config "$TMP_CONFIG" "$CONFIG_FILE" "$tun_enabled"
+  normalize_config "$TMP_CONFIG" "$CONFIG_FILE" 0
+  normalize_config "$TMP_CONFIG" "$TUN_CONFIG_FILE" 1
   rm -f "$TMP_CONFIG"
-  chmod 600 "$CONFIG_FILE"
-  echo "配置已更新: $CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE" "$TUN_CONFIG_FILE"
+  echo "普通配置已更新: $CONFIG_FILE"
+  echo "TUN 配置已更新: $TUN_CONFIG_FILE"
 }
 
 main "$@"

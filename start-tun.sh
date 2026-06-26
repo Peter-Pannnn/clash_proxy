@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CORE_BIN="$PROJECT_DIR/clash"
-CONFIG_FILE="$PROJECT_DIR/config.yaml"
+CONFIG_FILE="$PROJECT_DIR/config-tun.yaml"
 PID_FILE="$PROJECT_DIR/clash.pid"
 LOG_FILE="$PROJECT_DIR/clash.log"
 
@@ -53,13 +53,14 @@ if [[ ! -x "$CORE_BIN" ]]; then
 fi
 
 if [[ ! -s "$CONFIG_FILE" ]]; then
-  echo "找不到配置文件: $CONFIG_FILE" >&2
+  echo "找不到 TUN 配置文件: $CONFIG_FILE" >&2
+  echo "请先运行: $PROJECT_DIR/update-config.sh" >&2
   exit 1
 fi
 
 if ! tun_enabled; then
-  echo "当前 config.yaml 未开启 TUN。" >&2
-  echo "请先运行: CLASH_TUN=1 $PROJECT_DIR/update-config.sh" >&2
+  echo "当前 config-tun.yaml 未开启 TUN。" >&2
+  echo "请先运行: $PROJECT_DIR/update-config.sh" >&2
   exit 1
 fi
 

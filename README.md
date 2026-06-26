@@ -9,7 +9,7 @@
 | 功能 | 脚本 | 说明 |
 | --- | --- | --- |
 | 一键安装 | `install.sh` | 下载 Mihomo 核心、拉取订阅、生成配置并启动 |
-| 更新订阅 | `update-config.sh` | 使用已有订阅或新订阅重新生成配置 |
+| 更新订阅 | `update-config.sh` | 使用已有订阅或新订阅重新生成普通/TUN 配置 |
 | 普通代理 | `start.sh` | 启动本机 HTTP/SOCKS 代理 |
 | TUN 模式 | `start-tun.sh` | 以 root 启动透明代理/TUN 模式 |
 | 停止/重启 | `stop.sh` / `restart.sh` | 管理正在运行的代理进程 |
@@ -46,7 +46,7 @@ curl -I -x http://127.0.0.1:7890 https://www.google.com
 | 停止代理 | `./stop.sh` |
 | 重启代理 | `./restart.sh` |
 | 查看状态 | `./status.sh` |
-| 生成 TUN 配置 | `CLASH_TUN=1 ./update-config.sh` |
+| 更新普通/TUN 配置 | `./update-config.sh` |
 | 启动 TUN 模式 | `sudo ./start-tun.sh` |
 | 测试 TUN 联网 | `curl -I https://www.google.com` |
 | 取消当前 shell 代理环境变量 | `unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY` |
@@ -65,6 +65,8 @@ sudo ./stop.sh
 ./update-config.sh
 ./restart.sh
 ```
+
+`update-config.sh` 会同时生成两份配置：`config.yaml` 用于普通代理，`config-tun.yaml` 用于 TUN 模式。普通启动不会读取 TUN 配置，TUN 启动也不会复用普通配置。
 
 更换订阅链接：
 

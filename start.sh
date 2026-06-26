@@ -45,9 +45,10 @@ main() {
     exit 1
   fi
 
-  if tun_enabled && [[ "$(id -u)" -ne 0 ]]; then
-    echo "当前配置已开启 TUN，需要管理员权限启动。" >&2
-    echo "请使用: sudo $PROJECT_DIR/start-tun.sh" >&2
+  if tun_enabled; then
+    echo "普通配置 $CONFIG_FILE 中仍开启 TUN。" >&2
+    echo "请运行 ./update-config.sh 重新生成普通/TUN 双配置。" >&2
+    echo "TUN 模式请使用: sudo $PROJECT_DIR/start-tun.sh" >&2
     exit 1
   fi
 

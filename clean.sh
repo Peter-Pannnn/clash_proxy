@@ -14,7 +14,7 @@ usage() {
   ./clean.sh -y       不询问确认
 
 默认会删除:
-  clash, config.yaml, geoip.metadb, geosite.dat, subscription.url,
+  clash, config.yaml, config-tun.yaml, geoip.metadb, geosite.dat, subscription.url,
   clash.pid, clash.log, cache.db 等安装和运行生成的文件。
 EOF
 }
@@ -43,6 +43,7 @@ collect_pids() {
       cat "$PID_FILE"
     fi
     pgrep -f "$PROJECT_DIR/clash -d $PROJECT_DIR -f $PROJECT_DIR/config.yaml" || true
+    pgrep -f "$PROJECT_DIR/clash -d $PROJECT_DIR -f $PROJECT_DIR/config-tun.yaml" || true
   } | awk '/^[0-9]+$/ && !seen[$1]++ { print $1 }'
 }
 
@@ -100,6 +101,7 @@ echo "清除下载和运行生成的文件..."
 targets=(
   "$PROJECT_DIR/clash"
   "$PROJECT_DIR/config.yaml"
+  "$PROJECT_DIR/config-tun.yaml"
   "$PROJECT_DIR/config.yaml.download"
   "$PROJECT_DIR/geoip.metadb"
   "$PROJECT_DIR/geosite.dat"

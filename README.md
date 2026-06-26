@@ -1,26 +1,35 @@
-# Clash 代理脚本
+# Clash/Mihomo 服务器代理脚本
 
-本目录用于在 `~/clash` 下安装、启动和管理 Clash/Mihomo 代理。普通代理不需要 root；TUN 模式需要 root。
+一个用于在 Linux 服务器上快速部署 Mihomo/Clash TUN 代理的轻量脚本项目。它提供核心下载、TUN 权限配置、订阅更新、代理启动和按国家/地区交互选择节点等功能，并默认忽略二进制、订阅配置和运行缓存等本地文件。
 
-## 脚本说明
+普通代理不需要 root；TUN 模式需要 root。所有脚本默认围绕当前仓库目录工作，适合直接放在 `~/clash` 下使用。
 
-```text
-install.sh         一键安装、拉取订阅并启动
-update-config.sh   更新订阅配置
-start.sh           启动普通代理
-start-tun.sh       启动 TUN 模式
-stop.sh            停止代理
-restart.sh         重启代理
-status.sh          查看运行状态和最近日志
-select-node.sh     按国家/地区选择节点并测速
-clean.sh           停止代理并清除下载/运行生成的文件
-```
+## 功能概览
 
-## 安装和启动
+| 功能 | 脚本 | 说明 |
+| --- | --- | --- |
+| 一键安装 | `install.sh` | 下载 Mihomo 核心、拉取订阅、生成配置并启动 |
+| 更新订阅 | `update-config.sh` | 使用已有订阅或新订阅重新生成配置 |
+| 普通代理 | `start.sh` | 启动本机 HTTP/SOCKS 代理 |
+| TUN 模式 | `start-tun.sh` | 以 root 启动透明代理/TUN 模式 |
+| 停止/重启 | `stop.sh` / `restart.sh` | 管理正在运行的代理进程 |
+| 状态查看 | `status.sh` | 查看进程状态和最近日志 |
+| 节点选择 | `select-node.sh` | 按国家/地区筛选节点、测速并切换 |
+| 清理文件 | `clean.sh` | 停止代理并删除下载、缓存和运行产物 |
+
+## 快速开始
 
 ```bash
 cd ~/clash
 ./install.sh '你的订阅链接'
+```
+
+安装完成后，普通代理默认监听本机 `7890` 端口：
+
+```bash
+export http_proxy=http://127.0.0.1:7890
+export https_proxy=http://127.0.0.1:7890
+curl -I -x http://127.0.0.1:7890 https://www.google.com
 ```
 
 只安装和更新配置，不立即启动：
@@ -29,21 +38,20 @@ cd ~/clash
 ./install.sh '你的订阅链接' --no-start
 ```
 
-启动、停止、重启：
+## 常用命令
 
-```bash
-./start.sh
-./stop.sh
-./restart.sh
-```
+| 操作 | 命令 |
+| --- | --- |
+| 启动普通代理 | `./start.sh` |
+| 停止代理 | `./stop.sh` |
+| 重启代理 | `./restart.sh` |
+| 查看状态 | `./status.sh` |
+| 生成 TUN 配置 | `CLASH_TUN=1 ./update-config.sh` |
+| 启动 TUN 模式 | `sudo ./start-tun.sh` |
+| 测试 TUN 联网 | `curl -I https://www.google.com` |
+| 取消当前 shell 代理环境变量 | `unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY` |
 
-查看状态：
-
-```bash
-./status.sh
-```
-
-如果使用 TUN/root 启动，停止时建议使用：
+如果代理是用 TUN/root 模式启动的，停止时建议使用：
 
 ```bash
 sudo ./stop.sh
@@ -73,85 +81,26 @@ sudo ./stop.sh
 ./select-node.sh
 ```
 
-只列出可选国家/地区：
+常见用法：
 
 ```bash
 ./select-node.sh --list
-```
-
-指定国家/地区测速：
-
-```bash
 ./select-node.sh --country 日本
-```
-
-自动选择指定国家/地区里延迟最低的节点：
-
-```bash
 ./select-node.sh --country 日本 --fastest
-```
-
-只测速，不切换节点：
-
-```bash
 ./select-node.sh --country 美国 --test-only
-```
-
-
-调整测速超时和并发数：
-
-```bash
 ./select-node.sh --country 日本 --timeout 8000 --concurrency 4
 ```
 
-## TUN 模式
+参数含义：
 
-生成 TUN 配置并启动：
-
-```bash
-cd ~/clash
-CLASH_TUN=1 ./update-config.sh
-sudo ./start-tun.sh
-```
-
-查看状态：
-
-```bash
-./status.sh
-```
-
-TUN 模式下测试联网不需要指定代理端口：
-
-```bash
-curl -I https://www.google.com
-```
-
-关闭 TUN：
-
-```bash
-sudo ./stop.sh
-```
-
-## 使用和测试
-
-普通代理默认使用本机 `7890` 端口：
-
-```bash
-export http_proxy=http://127.0.0.1:7890
-export https_proxy=http://127.0.0.1:7890
-```
-
-测试是否能连接 Google：
-
-```bash
-curl -I -x http://127.0.0.1:7890 https://www.google.com
-```
-
-取消当前 shell 的代理环境变量：
-
-```bash
-unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
-```
+| 参数 | 说明 |
+| --- | --- |
+| `--list` | 只列出可选国家/地区 |
+| `--country <地区>` | 指定国家/地区测速或选择 |
+| `--fastest` | 自动选择指定地区里延迟最低的节点 |
+| `--test-only` | 只测速，不切换节点 |
+| `--timeout <毫秒>` | 调整单个节点测速超时 |
+| `--concurrency <数量>` | 调整并发测速数量 |
 
 ## 清理
 
@@ -173,4 +122,4 @@ sudo ./clean.sh
 ./clean.sh -y
 ```
 
-清理脚本只删除下载和运行生成的文件
+清理脚本只删除下载和运行生成的文件，不会删除仓库脚本。

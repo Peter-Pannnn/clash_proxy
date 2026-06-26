@@ -284,6 +284,28 @@ def find_country(groups, query):
     return ""
 
 
+EXIT_CHOICES = {"0", "q", "quit", "exit", "退出"}
+BACK_CHOICES = {"b", "back", "return", "返回", "上一步"}
+BACK = "__back__"
+
+
+def normalize_choice(value):
+    return (value or "").strip().lower()
+
+
+def is_exit_choice(value):
+    return normalize_choice(value) in EXIT_CHOICES
+
+
+def is_back_choice(value):
+    return normalize_choice(value) in BACK_CHOICES
+
+
+def exit_interactive():
+    print("已退出。")
+    sys.exit(0)
+
+
 def read_line(prompt):
     try:
         with open("/dev/tty", "r", encoding="utf-8") as tty_in, open(
@@ -299,23 +321,23 @@ def read_line(prompt):
 
 def prompt_country(groups):
     countries = list(groups)
-    print("可用国家/地区:")
-    for index, country in enumerate(countries, 1):
-        print(f"  {index}. {country} ({len(groups[country])} 个)")
+    while True:
+        print("可用国家/地区:")
+        for index, country in enumerate(countries, 1):
+            print(f"  {index}. {country} ({len(groups[country])} 个)")
+        print("  0. 退出")
 
-    choice = read_line("请选择国家/地区编号或名称: ")
-    if not choice:
-        print("已取消。")
-        sys.exit(0)
-    if choice.isdigit() and 1 <= int(choice) <= len(countries):
-        return countries[int(choice) - 1]
+        choice = read_line("请选择国家/地区编号或名称，输入 0/q 退出: ")
+        if not choice or is_exit_choice(choice):
+            exit_interactive()
+        if choice.isdigit() and 1 <= int(choice) <= len(countries):
+            return countries[int(choice) - 1]
 
-    country = find_country(groups, choice)
-    if country:
-        return country
+        country = find_country(groups, choice)
+        if country:
+            return country
 
-    print(f"未找到国家/地区: {choice}", file=sys.stderr)
-    sys.exit(1)
+        print(f"未找到国家/地区: {choice}", file=sys.stderr)
 
 
 def test_delay(node):
@@ -359,7 +381,7 @@ def print_results(results):
         print(f"  {index:>2}. {delay_text:<8} {item['name']}")
 
 
-def choose_node(results):
+def choose_node(results, allow_back=False):
     ok_results = [item for item in results if item["delay"] is not None]
     if args.fastest:
         if not ok_results:
@@ -368,14 +390,26 @@ def choose_node(results):
         return ok_results[0]["name"]
 
     default_name = ok_results[0]["name"] if ok_results else results[0]["name"]
-    prompt = "请选择节点编号，直接回车使用延迟最低节点: "
-    choice = read_line(prompt)
-    if not choice:
-        return default_name
-    if not choice.isdigit() or not (1 <= int(choice) <= len(results)):
+    if allow_back:
+        print("   b. 返回国家/地区")
+    print("   0. 退出")
+
+    prompt = "请选择节点编号，直接回车使用延迟最低节点"
+    if allow_back:
+        prompt += "，输入 b 返回"
+    prompt += "，输入 0/q 退出: "
+
+    while True:
+        choice = read_line(prompt)
+        if not choice:
+            return default_name
+        if allow_back and is_back_choice(choice):
+            return BACK
+        if is_exit_choice(choice):
+            exit_interactive()
+        if choice.isdigit() and 1 <= int(choice) <= len(results):
+            return results[int(choice) - 1]["name"]
         print(f"无效编号: {choice}", file=sys.stderr)
-        sys.exit(1)
-    return results[int(choice) - 1]["name"]
 
 
 def switch_node(group_name, node_name):
@@ -402,20 +436,36 @@ if args.list:
         print(f"  {country}: {len(country_nodes)} 个")
     sys.exit(0)
 
-country = find_country(groups, args.country) if args.country else prompt_country(groups)
-if not country:
-    print(f"未找到国家/地区: {args.country}", file=sys.stderr)
-    sys.exit(1)
+def handle_country(country, allow_back=False):
+    country_nodes = groups[country]
+    print(f"正在测试 {country} 节点延迟，共 {len(country_nodes)} 个...")
+    results = test_nodes(country_nodes)
+    print_results(results)
 
-country_nodes = groups[country]
-print(f"正在测试 {country} 节点延迟，共 {len(country_nodes)} 个...")
-results = test_nodes(country_nodes)
-print_results(results)
+    if args.test_only:
+        return None
 
-if args.test_only:
+    selected = choose_node(results, allow_back=allow_back)
+    if selected == BACK:
+        return BACK
+
+    switch_node(group_name, selected)
+    print(f"已切换 {group_name} -> {selected}")
+    return selected
+
+
+if args.country:
+    country = find_country(groups, args.country)
+    if not country:
+        print(f"未找到国家/地区: {args.country}", file=sys.stderr)
+        sys.exit(1)
+    handle_country(country)
     sys.exit(0)
 
-selected = choose_node(results)
-switch_node(group_name, selected)
-print(f"已切换 {group_name} -> {selected}")
+while True:
+    country = prompt_country(groups)
+    result = handle_country(country, allow_back=True)
+    if result == BACK:
+        continue
+    break
 PY

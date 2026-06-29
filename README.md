@@ -57,6 +57,26 @@ curl -I -x http://127.0.0.1:7890 https://www.google.com
 sudo ./stop.sh
 ```
 
+## Codex 插件代理
+
+在 VS Code Remote SSH 中使用 Codex 插件时，通常不需要开启 TUN。先启动普通代理：
+
+```bash
+cd ~/clash
+./start.sh
+```
+
+然后在 `~/.codex/.env` 中写入代理环境变量：
+
+```env
+HTTP_PROXY=http://127.0.0.1:7890
+HTTPS_PROXY=http://127.0.0.1:7890
+ALL_PROXY=http://127.0.0.1:7890
+NO_PROXY=localhost,127.0.0.1
+```
+
+保存后重启 Codex 插件或重连 VS Code Remote SSH。这样只有 Codex 进程走本机普通代理，服务器其他流量不会被透明代理接管。
+
 ## 更新订阅
 
 使用已保存的订阅链接：

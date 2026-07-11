@@ -9,8 +9,8 @@ TMP_ARCHIVE="$PROJECT_DIR/mihomo.gz"
 GITHUB_API="https://api.github.com/repos/MetaCubeX/mihomo/releases/latest"
 GEOIP_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb"
 GEOSITE_URL="https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
-CURL_CONNECT_TIMEOUT="${CLASH_CONNECT_TIMEOUT:-15}"
-CURL_MAX_TIME="${CLASH_MAX_TIME:-120}"
+WGET_CONNECT_TIMEOUT="${CLASH_CONNECT_TIMEOUT:-15}"
+WGET_READ_TIMEOUT="${CLASH_MAX_TIME:-120}"
 DEFAULT_GITHUB_MIRROR="https://gh.llkk.cc/"
 
 usage() {
@@ -34,14 +34,19 @@ need_cmd() {
   fi
 }
 
-curl_direct() {
+wget_direct() {
   if [[ -n "${CLASH_DOWNLOAD_PROXY:-}" ]]; then
-    curl --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" --retry 2 --retry-delay 2 --proxy "$CLASH_DOWNLOAD_PROXY" "$@"
+    env \
+      http_proxy="$CLASH_DOWNLOAD_PROXY" https_proxy="$CLASH_DOWNLOAD_PROXY" \
+      HTTP_PROXY="$CLASH_DOWNLOAD_PROXY" HTTPS_PROXY="$CLASH_DOWNLOAD_PROXY" \
+      wget --connect-timeout="$WGET_CONNECT_TIMEOUT" --read-timeout="$WGET_READ_TIMEOUT" \
+        --tries=3 --waitretry=2 --max-redirect=20 "$@"
   else
     env \
-      -u http_proxy -u https_proxy -u all_proxy \
-      -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
-      curl --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" --retry 2 --retry-delay 2 --proxy "" --noproxy "*" "$@"
+      -u http_proxy -u https_proxy -u all_proxy -u no_proxy \
+      -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY \
+      wget --no-proxy --connect-timeout="$WGET_CONNECT_TIMEOUT" --read-timeout="$WGET_READ_TIMEOUT" \
+        --tries=3 --waitretry=2 --max-redirect=20 "$@"
   fi
 }
 
@@ -52,13 +57,13 @@ download_with_mirror() {
   local mirror_url
 
   echo "下载${label}: $url"
-  if curl_direct -fL "$url" -o "$output"; then
+  if wget_direct -O "$output" "$url"; then
     return 0
   fi
 
   mirror_url="${CLASH_GITHUB_MIRROR:-$DEFAULT_GITHUB_MIRROR}$url"
   echo "${label}官方下载失败，尝试镜像: $mirror_url" >&2
-  curl_direct -fL "$mirror_url" -o "$output"
+  wget_direct -O "$output" "$mirror_url"
 }
 
 detect_asset_keyword() {
@@ -87,7 +92,7 @@ fetch_latest_asset_url() {
   local keyword="$1"
   local release_json
 
-  if ! release_json="$(curl_direct -fsSL "$GITHUB_API")"; then
+  if ! release_json="$(wget_direct -qO- "$GITHUB_API")"; then
     echo "无法获取 Mihomo 最新版本信息。" >&2
     echo "如果服务器无法直连 GitHub，请使用:" >&2
     echo "  CLASH_DOWNLOAD_PROXY=http://代理地址:端口 ./install.sh '<订阅链接>'" >&2
@@ -190,7 +195,7 @@ main() {
     exit 1
   fi
 
-  need_cmd curl
+  need_cmd wget
   need_cmd awk
   need_cmd gzip
 

@@ -6,8 +6,8 @@ SUB_FILE="$PROJECT_DIR/subscription.url"
 CONFIG_FILE="$PROJECT_DIR/config.yaml"
 TUN_CONFIG_FILE="$PROJECT_DIR/config-tun.yaml"
 TMP_CONFIG="$PROJECT_DIR/config.yaml.download"
-CURL_CONNECT_TIMEOUT="${CLASH_CONNECT_TIMEOUT:-15}"
-CURL_MAX_TIME="${CLASH_SUB_MAX_TIME:-30}"
+WGET_CONNECT_TIMEOUT="${CLASH_CONNECT_TIMEOUT:-15}"
+WGET_READ_TIMEOUT="${CLASH_SUB_MAX_TIME:-30}"
 
 usage() {
   cat <<EOF
@@ -30,14 +30,19 @@ need_cmd() {
   fi
 }
 
-curl_direct() {
+wget_direct() {
   if [[ -n "${CLASH_DOWNLOAD_PROXY:-}" ]]; then
-    curl --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" --speed-limit 1 --speed-time 8 --proxy "$CLASH_DOWNLOAD_PROXY" "$@"
+    env \
+      http_proxy="$CLASH_DOWNLOAD_PROXY" https_proxy="$CLASH_DOWNLOAD_PROXY" \
+      HTTP_PROXY="$CLASH_DOWNLOAD_PROXY" HTTPS_PROXY="$CLASH_DOWNLOAD_PROXY" \
+      wget --connect-timeout="$WGET_CONNECT_TIMEOUT" --read-timeout="$WGET_READ_TIMEOUT" \
+        --tries=3 --waitretry=2 --max-redirect=20 "$@"
   else
     env \
-      -u http_proxy -u https_proxy -u all_proxy \
-      -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY \
-      curl --connect-timeout "$CURL_CONNECT_TIMEOUT" --max-time "$CURL_MAX_TIME" --speed-limit 1 --speed-time 8 --proxy "" --noproxy "*" "$@"
+      -u http_proxy -u https_proxy -u all_proxy -u no_proxy \
+      -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY \
+      wget --no-proxy --connect-timeout="$WGET_CONNECT_TIMEOUT" --read-timeout="$WGET_READ_TIMEOUT" \
+        --tries=3 --waitretry=2 --max-redirect=20 "$@"
   fi
 }
 
@@ -430,7 +435,7 @@ main() {
     exit 0
   fi
 
-  need_cmd curl
+  need_cmd wget
   need_cmd python3
 
   if [[ -z "$subscription_url" ]]; then
@@ -446,11 +451,11 @@ main() {
   fi
 
   echo "下载订阅配置..."
-  if ! curl_direct -fL \
-    -H "User-Agent: $sub_user_agent" \
-    -H "Accept: text/plain, application/yaml, application/x-yaml, */*" \
-    "$subscription_url" \
-    -o "$TMP_CONFIG"; then
+  if ! wget_direct \
+    -O "$TMP_CONFIG" \
+    --header="User-Agent: $sub_user_agent" \
+    --header="Accept: text/plain, application/yaml, application/x-yaml, */*" \
+    "$subscription_url"; then
     if [[ -s "$TMP_CONFIG" ]]; then
       echo "下载连接提前结束或超时，但已收到配置内容，继续处理。"
     else

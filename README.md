@@ -24,6 +24,15 @@ cd ~/clash
 ./install.sh '你的订阅链接'
 ```
 
+使用自己的 Mihomo 内核下载地址：
+
+```bash
+CLASH_CORE_URL='https://example.com/mihomo-linux-amd64-vX.Y.Z.gz' \
+  ./install.sh '你的订阅链接'
+```
+
+下载地址应为与服务器架构匹配的 Mihomo `.gz` 内核包；设置后会跳过自动获取最新版本。
+
 安装完成后，普通代理默认监听本机 `7890` 端口：
 
 ```bash

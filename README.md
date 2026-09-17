@@ -3,12 +3,13 @@
 一个用于在 Linux 服务器上快速部署 Mihomo/Clash TUN 代理的轻量脚本项目。它提供核心下载、TUN 权限配置、订阅更新、代理启动和按国家/地区交互选择节点等功能，并默认忽略二进制、订阅配置和运行缓存等本地文件。
 
 普通代理不需要 root；TUN 模式需要 root。所有脚本默认围绕当前仓库目录工作，适合直接放在 `~/clash` 下使用。
+内核、Geo 数据和订阅配置均使用 `wget` 下载，无需安装 `curl`。
 
 ## 功能概览
 
 | 功能 | 脚本 | 说明 |
 | --- | --- | --- |
-| 一键安装 | `install.sh` | 下载 Mihomo 核心、拉取订阅、生成配置并启动 |
+| 一键安装 | `install.sh` | 识别本地内核（找不到时下载）、拉取订阅、生成配置并启动 |
 | 更新订阅 | `update-config.sh` | 使用已有订阅或新订阅重新生成普通/TUN 配置 |
 | 普通代理 | `start.sh` | 启动本机 HTTP/SOCKS 代理 |
 | TUN 模式 | `start-tun.sh` | 以 root 启动透明代理/TUN 模式 |
@@ -24,6 +25,22 @@ cd ~/clash
 ./install.sh '你的订阅链接'
 ```
 
+使用自行下载并解压的 Clash/Mihomo 二进制文件：
+
+```bash
+cd ~/clash
+./install.sh '你的订阅链接' --core /path/to/mihomo-linux-amd64
+```
+
+也可以把二进制直接放入项目目录。`install.sh` 会自动查找名称为 `clash`、
+`clash-*`、`clash_*`、`mihomo`、`mihomo-*` 或 `mihomo_*` 的本地内核，使其可执行、
+验证版本后复制为项目使用的 `clash`。原文件会保留；只有未找到可用的
+本地内核时，脚本才会从 GitHub 下载。也可使用环境变量：
+
+```bash
+CLASH_CORE_FILE=/path/to/clash ./install.sh '你的订阅链接'
+```
+
 使用自己的 Mihomo 内核下载地址：
 
 ```bash
@@ -31,14 +48,16 @@ CLASH_CORE_URL='https://example.com/mihomo-linux-amd64-vX.Y.Z.gz' \
   ./install.sh '你的订阅链接'
 ```
 
-下载地址应为与服务器架构匹配的 Mihomo `.gz` 内核包；设置后会跳过自动获取最新版本。
+下载地址应为与服务器架构匹配的 Mihomo `.gz` 内核包。设置后会跳过
+本地自动查找和最新版本查询；`--core` / `CLASH_CORE_FILE` 的优先级更高。
 
 安装完成后，普通代理默认监听本机 `7890` 端口：
 
 ```bash
 export http_proxy=http://127.0.0.1:7890
 export https_proxy=http://127.0.0.1:7890
-curl -I -x http://127.0.0.1:7890 https://www.google.com
+wget --spider -S -e use_proxy=yes \
+  -e https_proxy=http://127.0.0.1:7890 https://www.google.com
 ```
 
 只安装和更新配置，不立即启动：
@@ -57,7 +76,7 @@ curl -I -x http://127.0.0.1:7890 https://www.google.com
 | 查看状态 | `./status.sh` |
 | 更新普通/TUN 配置 | `./update-config.sh` |
 | 启动 TUN 模式 | `sudo ./start-tun.sh` |
-| 测试 TUN 联网 | `curl -I https://www.google.com` |
+| 测试 TUN 联网 | `wget --spider -S https://www.google.com` |
 | 取消当前 shell 代理环境变量 | `unset http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY` |
 
 如果代理是用 TUN/root 模式启动的，停止时建议使用：
@@ -153,4 +172,5 @@ sudo ./clean.sh
 ./clean.sh -y
 ```
 
-清理脚本只删除下载和运行生成的文件，不会删除仓库脚本。
+清理脚本只删除下载和运行生成的文件，不会删除仓库脚本，也会保留
+自行放入的 `clash-*` / `mihomo-*` 原始内核文件。

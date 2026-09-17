@@ -16,11 +16,15 @@ DEFAULT_GITHUB_MIRROR="https://gh.llkk.cc/"
 usage() {
   cat <<EOF
 用法:
-  ./install.sh '<订阅链接>' [--no-start]
+  ./install.sh '<订阅链接>' [--core <本地内核文件>] [--no-start]
 
 示例:
   ./install.sh 'https://example.com/subscription'
+  ./install.sh 'https://example.com/subscription' --core ./mihomo-linux-amd64
   ./install.sh 'https://example.com/subscription' --no-start
+
+未指定 --core 时，会先在项目目录中查找 clash* 或 mihomo* 本地内核；
+只有找不到可用的本地内核时才会下载。
 
 所有文件都会放在:
   $PROJECT_DIR
@@ -111,8 +115,101 @@ fetch_latest_asset_url() {
     '
 }
 
-install_core() {
-  local keyword asset_url archive
+core_version() {
+  local core_file="$1"
+  local version
+
+  if ! version="$("$core_file" -v 2>&1)"; then
+    return 1
+  fi
+
+  if ! grep -Eiq 'clash|mihomo' <<<"$version"; then
+    return 1
+  fi
+
+  printf '%s\n' "$version" | head -n 1
+}
+
+install_local_core() {
+  local source_file="$1"
+  local source_dir source_abs staging version
+
+  if [[ ! -f "$source_file" ]]; then
+    echo "本地内核文件不存在: $source_file" >&2
+    return 1
+  fi
+
+  source_dir="$(cd "$(dirname "$source_file")" && pwd)"
+  source_abs="$source_dir/$(basename "$source_file")"
+
+  if [[ "$source_abs" == "$CORE_BIN" ]]; then
+    chmod +x "$CORE_BIN"
+    if ! version="$(core_version "$CORE_BIN")"; then
+      echo "文件不是可用的 Clash/Mihomo 内核: $source_file" >&2
+      return 1
+    fi
+  else
+    staging="$PROJECT_DIR/.clash.install.$$"
+    rm -f "$staging"
+    if ! cp -- "$source_abs" "$staging"; then
+      rm -f "$staging"
+      return 1
+    fi
+    chmod +x "$staging"
+
+    if ! version="$(core_version "$staging")"; then
+      echo "文件不是可用的 Clash/Mihomo 内核: $source_file" >&2
+      rm -f "$staging"
+      return 1
+    fi
+
+    mv -f "$staging" "$CORE_BIN"
+  fi
+
+  echo "已使用本地内核: $source_abs"
+  echo "内核已安装: $version"
+}
+
+find_local_core() {
+  local candidate
+  local candidates=()
+
+  if [[ -f "$CORE_BIN" ]]; then
+    candidates+=("$CORE_BIN")
+  fi
+
+  shopt -s nullglob
+  candidates+=(
+    "$PROJECT_DIR"/mihomo
+    "$PROJECT_DIR"/mihomo-*
+    "$PROJECT_DIR"/mihomo_*
+    "$PROJECT_DIR"/clash-*
+    "$PROJECT_DIR"/clash_*
+  )
+  shopt -u nullglob
+
+  for candidate in "${candidates[@]}"; do
+    [[ -f "$candidate" ]] || continue
+    case "$candidate" in
+      *.gz|*.zip|*.tar|*.tgz|*.xz|*.bz2|*.download)
+        continue
+        ;;
+    esac
+
+    if install_local_core "$candidate"; then
+      return 0
+    fi
+    echo "跳过无效的本地内核候选: $candidate" >&2
+  done
+
+  return 1
+}
+
+download_core() {
+  local keyword asset_url archive staging version
+
+  need_cmd awk
+  need_cmd gzip
 
   keyword="$(detect_asset_keyword)"
   echo "当前平台: $keyword"
@@ -140,13 +237,51 @@ install_core() {
     exit 1
   fi
 
-  rm -f "$CORE_BIN"
-  gzip -dc "$archive" > "$CORE_BIN"
+  staging="$PROJECT_DIR/.clash.install.$$"
+  rm -f "$staging"
+  if ! gzip -dc "$archive" > "$staging"; then
+    rm -f "$archive" "$staging"
+    echo "Mihomo 内核解压失败。" >&2
+    exit 1
+  fi
   rm -f "$archive"
-  chmod +x "$CORE_BIN"
+  chmod +x "$staging"
 
-  echo "内核已安装:"
-  "$CORE_BIN" -v | head -n 1 || true
+  if ! version="$(core_version "$staging")"; then
+    rm -f "$staging"
+    echo "下载的文件不是可用的 Clash/Mihomo 内核。" >&2
+    exit 1
+  fi
+
+  mv -f "$staging" "$CORE_BIN"
+
+  echo "内核已安装: $version"
+}
+
+install_core() {
+  local local_core="${1:-}"
+
+  if [[ -n "$local_core" ]]; then
+    echo "使用指定的本地内核。"
+    if ! install_local_core "$local_core"; then
+      exit 1
+    fi
+    return 0
+  fi
+
+  if [[ -n "${CLASH_CORE_URL:-}" ]]; then
+    echo "已指定 CLASH_CORE_URL，将使用该地址下载内核。"
+    download_core
+    return 0
+  fi
+
+  echo "查找项目目录中的本地 Clash/Mihomo 内核..."
+  if find_local_core; then
+    return 0
+  fi
+
+  echo "未找到可用的本地内核，将下载 Mihomo。"
+  download_core
 }
 
 install_geodata() {
@@ -165,6 +300,7 @@ install_geodata() {
 
 main() {
   local subscription_url=""
+  local local_core="${CLASH_CORE_FILE:-}"
   local no_start=0
 
   while [[ $# -gt 0 ]]; do
@@ -175,6 +311,24 @@ main() {
         ;;
       --no-start)
         no_start=1
+        shift
+        ;;
+      --core)
+        if [[ $# -lt 2 || -z "$2" ]]; then
+          echo "--core 需要提供本地内核文件路径。" >&2
+          usage
+          exit 1
+        fi
+        local_core="$2"
+        shift 2
+        ;;
+      --core=*)
+        local_core="${1#--core=}"
+        if [[ -z "$local_core" ]]; then
+          echo "--core 需要提供本地内核文件路径。" >&2
+          usage
+          exit 1
+        fi
         shift
         ;;
       *)
@@ -196,13 +350,11 @@ main() {
   fi
 
   need_cmd wget
-  need_cmd awk
-  need_cmd gzip
 
   printf '%s\n' "$subscription_url" > "$SUB_FILE"
   chmod 600 "$SUB_FILE"
 
-  install_core
+  install_core "$local_core"
   install_geodata
   "$PROJECT_DIR/update-config.sh" "$subscription_url"
 

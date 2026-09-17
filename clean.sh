@@ -121,7 +121,9 @@ for path in "${targets[@]}"; do
   fi
 done
 
-for path in "$PROJECT_DIR"/mihomo-* "$PROJECT_DIR"/*.gz "$PROJECT_DIR"/*.download; do
+# 保留用户自行放入的 clash-* / mihomo-* 原始内核文件。
+# install.sh 使用本地内核时会复制为上面的 clash，该副本仍会被清理。
+for path in "$PROJECT_DIR"/*.gz "$PROJECT_DIR"/*.download; do
   if [[ -e "$path" || -L "$path" ]]; then
     rm -f -- "$path"
     echo "已删除: $path"

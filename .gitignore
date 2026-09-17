@@ -1,5 +1,10 @@
 # Runtime and generated Clash files
 /clash
+/clash-*
+/clash_*
+/mihomo
+/mihomo-*
+/mihomo_*
 /cache.db
 /clash.log
 /clash.pid
